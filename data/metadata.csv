@@ -1,0 +1,11 @@
+﻿submission_sample_ID,sample_year_extract_ID,gene,year,location,site,sample_type,sample_number,sample_control
+CBW_01_16S,2021_25,16S,2021,sierra,Gardisky ,eDNA,171,samples
+CBW_02_16S,2021_26,16S,2021,sierra,Steelhead,eDNA,172,samples
+CBW_03_16S,2016_14,16S,2016,sierra,Pollydome 1,eDNA,173,samples
+CBW_04_16S,2021_27,16S,2021,sierra,Serene,eDNA,174,samples
+CBW_05_16S,2017_04,16S,2017,sierra,Lukens,eDNA,175,samples
+CBW_06_16S,2021_09,16S,2021,sierra,Eastern Brook Pond A,eDNA,176,samples
+CBW_07_16S,2016_18,16S,2016,sierra,Blue,eDNA,177,samples
+CBW_08_16S,2016_16,16S,2016,sierra,Boundary LK,eDNA,178,samples
+CBW_09_16S,2016_07,16S,2016,sierra,Spotted Fawn,eDNA,179,samples
+CBW_10_16S,2017_23,16S,2017,sierra,Greenstone,eDNA,180,samples

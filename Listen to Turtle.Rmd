@@ -1,0 +1,25 @@
+---
+title: "Pipeline Kook Slams: So haole don't even know you haole"
+author: "C Wall"
+date: "2022-10-04"
+output:
+  html_document:
+    code_folding: hide
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '4'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+```{r}
+metadata<- read.csv("data/metadata.csv")
+
+```
+
