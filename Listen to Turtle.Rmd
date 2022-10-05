@@ -1,5 +1,5 @@
 ---
-title: "Pipeline Kook Slams: So haole don't even know you haole"
+title: "Pipeline Kook Slams: Learning bioinformatics for microbiome analyses"
 author: "C Wall"
 date: "2022-10-04"
 output:
@@ -12,14 +12,160 @@ output:
     toc: yes
     toc_depth: '4'
 ---
+## Listen to Turtle  
+The goal of this tutorial is to work through 16S and 18S data using cut-adapt for trimming and DAD2 for filtering and taxonomic assignment. For cut-adapt processing of the raw FASTQ files, run the terminal script "Terminal Turtle" in RStudio terminal interface. Downstream (down pipe?) processing will be performed in R using DADA2.  
 
-```{r setup, include=FALSE}
+```{r global options, results="hide", warning=FALSE, message=FALSE, include=FALSE}
+if (!require('knitr')) install.packages('knitr'); library('knitr')
+knitr::opts_chunk$set(warning=FALSE, message=FALSE, fig.align='center')
+
+# load packages
+if (!require("pacman")) install.packages("pacman") # for rapid install if not in library
+
+# use pacman to load CRAN packages missing
+pacman::p_load('knitr', 'tidyverse', 'knitr', 'magrittr', 'effects', 'devtools',
+               'stringi', 'dplyr', "ggplot2", "gridExtra", "dada2", "phyloseq", "vegan", "cowplot",
+               "decontam","BiocManager", "dada2")
+
+devtools::install_github("benjjneb/dada2", ref="v1.20") # update to most recent dada2
+
+
+#upload Bioconductor (now BiocManager or R v. > 3.5.0 ), can specify different version in last line
+# if (!require("BiocManager", quietly = TRUE))
+# install.packages("BiocManager")
+
+#install specific BiocManager packages
+# BiocManager::install(c( "Decipher", "phangorn", "phyloseq"), update = TRUE, ask = FALSE)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+### Come to DADA2
+First, bring in the metadata for the 10 samples/fastq files we are using.
 ```{r}
-metadata<- read.csv("data/metadata.csv")
+run.metaD<- read.csv("data/metadata.csv")
+```
+  
+Now we will filter the trimmed (cut-adapt processed) FASTQ files.
+```{r filter and trim}
+# read in the names of the fastq files
+# perform some string manipulation to get lists of the forward and reverse fastq in matched order:
 
+# load in the cut-adapt samples in the "trimmed" folder
+miseq_path<-"data/trimmed" # CHANGE to the directory containing the fastq files after unzipping.
+list.files(miseq_path)
+
+## Filter and Trim
+### remove low quality reads, trim to consistent length
+
+# Sort ensures forward/reverse reads are in same order
+fnFs <- sort(list.files(miseq_path, pattern="_R1_trimmed.fastq"))
+fnRs <- sort(list.files(miseq_path, pattern="_R2_trimmed.fastq"))
+
+# Extract sample names, assuming filenames have format: SAMPLENAME_XXX.fastq
+# alternatively, you could trim this info from the "short_SampleList.txt" file we generated in terminal
+
+sampleNames.p2 <- sapply(strsplit(fnFs, "_"), `[`, 2) # extract sample names
+sampleNames.p3 <- sapply(strsplit(fnFs, "_"), `[`, 3) # extract the run # sample
+sampleNames<-paste(sampleNames.p2,sampleNames.p3) # compile
+sampleNames<-gsub(" ", "_", sampleNames) # remove space and add an underscore
+
+#### add this SampleNames to the metadata file
+run.metaD$sampleNames<-sampleNames
+
+# Specify the full path to the fnFs and fnRs
+fnFs <- file.path(miseq_path, fnFs)
+fnRs <- file.path(miseq_path, fnRs)
+fnFs[1:3]
 ```
 
+Inspect quality plot scores. Can then truncate based on quality for reads. These generally look pretty good, with quality scores above 30 in the ~ 250 range for F and ~ 200 for reverse. This is normal as the chemistry on the reverse can get tired and not perform as well.
+```{r filter and trim}
+# quality score plot for forward reads
+plotQualityProfile(fnFs[c(1,10)])
+
+# quality score plot for reverse reads
+plotQualityProfile(fnRs[c(2,8)])
+```
+
+Now we can The truncating value does not have to be same for F and R. Trimming and filtering is performed on paired reads jointly, i.e. both reads must pass the filter for the pair to pass.
+
+```{r export}
+# We define the filenames for the filtered fastq files:
+filt_path <- file.path(miseq_path, "filtered") # Place filtered files in filtered/ subdirectory
+if(!file_test("-d", filt_path)) dir.create(filt_path)
+
+filtFs <- file.path(filt_path, paste0(sampleNames, "_F_trimfilt.fastq"))
+filtRs <- file.path(filt_path, paste0(sampleNames, "_R_trimfilt.fastq"))
+
+#### --- if not using cut-adapt, Figaro is a nice option 
+# https://github.com/Zymo-Research/figaro
+# use raw fastq files, not sure if cutadapt will lead to problems, but logically, perhaps both don't go together
+# will give an estimate for max retension (84%)
+# will trim primer for forward (19) and reverse (20)
+# Run Figaro to get estiamtes of what the truncLen should be (called Trim Position)
+# removing the trimleft since primers removed, also Figaro can't run with trimmed data so forego.
+#### ---
+
+
+# We combine these trimming parameters with standard filtering parameters, the most important being the enforcement of a maximum of **2 expected errors per-read** 
+
+# truncLen = left (forward) and right (reverse) truncation specified by user based on quality score plots
+# if trimleft used, this will remove the F and R primers (or will at least remove the # of bp you specify)
+# maxEE = quality filtering threshold based on expected errors, 
+#   here 2,2 = toss reads if they have more than 2 erroneous base calls in F and R reads, separaetly
+# rm.phix = remove reads that match to PhiX bacteriophage genome (added by Illumina runs for quality monitoring)
+
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(215,200), #trimLeft=c(19,20),
+                     maxN=0, maxEE=c(2,2), truncQ=2, rm.phix=TRUE,
+                     compress=TRUE, multithread=TRUE) # On Windows set multithread=FALSE
+head(out)
+
+write.csv(out, file="output/out.trim.csv")
+```
+
+###Infer sequence variants
+After filtering, use high-resolution DADA2 method to to infer amplicon sequence variants (ASVs) exactly, without imposing any arbitrary threshhold 
+
+In order to verify that the error rates have been reasonably well-estimated, we inspect the fit between the observed error rates (black points) and the fitted error rates (black lines) in Figure 1. These figures show the frequencies of each type of transition as a function of the quality.
+
+```{r error rates}
+### estimate the error rates
+errF <- learnErrors(filtFs, multithread=TRUE)
+saveRDS(errF, file="output/errF.rds")
+
+errR <- learnErrors(filtRs, multithread=TRUE)
+saveRDS(errR, file="output/errR.rds")
+
+
+# plot error rates
+plotErrors(errF, nominalQ=TRUE)
+plotErrors(errR, nominalQ=TRUE)
+```
+
+Dereplication combines all identical sequencing reads into into “unique sequences” with a corresponding “abundance”: the number of reads with that unique sequence. Dereplication substantially reduces computation time by eliminating redundant comparisons.
+```{r, dereplicate}
+### Derep
+derepFs <- derepFastq(filtFs, verbose=TRUE)
+saveRDS(derepFs, file="output/derepFs.rds")
+
+derepRs <- derepFastq(filtRs, verbose=TRUE)
+saveRDS(derepRs, file="output/derepRs.rds")
+
+# Name the derep-class objects by the sample names
+names(derepFs) <- sampleNames
+names(derepRs) <- sampleNames
+```
+
+The DADA2 method relies on a parameterized model of substitution errors to distinguish sequencing errors from real biological variation
+```{r e}
+#The DADA2 sequence inference method can run in two different modes:
+#####
+dadaFs <-dada(derepFs, err=errF, multithread=2)
+saveRDS(dadaFs, file="output/dadaFs.rds")
+
+dadaRs <-dada(derepRs, err=errF, multithread=2)
+saveRDS(dadaRs,file="output/dadaRs.rds")
+
+# inspect data
+dadaFs[[1]]
+```

@@ -1,6 +1,9 @@
-###########--- Cut Adapt on local machine
-# "Listen to Turtle" -- check out the how to guide and workflow
+################## ################## ################## 
+# "Terminal Turtle" -- check out the how to guide and workflow
 # https://astrobiomike.github.io/amplicon/dada2_workflow_ex
+################## ################## ##################
+
+###########--- Cut Adapt on local machine
 
 
 # Use this terminal script for pipeline processing
@@ -13,6 +16,9 @@ conda config --add channels defaults
 conda config --add channels bioconda
 conda config --add channels conda-forge
 conda config --set channel_priority strict
+
+# also load 'seqfu'
+conda install -c conda-forge -c bioconda "seqfu>1.10"
 
 #### Now... 
 # install Cutadapt into a new Conda environment, use this command:
@@ -81,7 +87,15 @@ cat data/fastq/samples.txt
 # unzip sequence files, if necessary
 gunzip data/fastq/*.fastq.gz
 
-# run cutadapt
+##### run cutadapt
+
+# here our 16S primers have mixed concentrations of nucelotides to account for degeneracy,
+# Y = equal molar mix of C or T
+# M = A or C
+# N = any base
+# V = A, C, or G
+# W = A or T
+
 # but make sure you are in the directory for the project (i.e., in the '/Kook-slams' folder)
 for SAMPLEID in $(cat data/fastq/samples.txt);
 do
@@ -94,8 +108,41 @@ do
 	>> output/cutadapt_primer_trimming_stats.txt 2>&1
 done
 
-# to rezip, def need to do this if pushing to github
-gzip data/fastq/*.fastq
-gzip data/trimmed/*.fastq
+# by adding the ".gz" for the output for forward and reverse, it will compress the files for us
+# example: R1_trimmed.fastq.gz for -o
 
+# to rezip, def need to do this if pushing to github
+gzip data/fastq/*.fastq # rezip the raw data
+gzip data/trimmed/*.fastq  # no need if output rezips for you
+
+### -------
+# this is a good point to push the trimmed files to GitHub
+# later on the unzipped fastq files are too large
+### -------
+
+
+#### evaluating cut-adapt
+## if need, unzip -- this will bring us back to fastq formats
+gunzip data/fastq/*.fastq.gz
+gunzip data/trimmed/*.fastq.gz
+
+### R1 BEFORE TRIMMING PRIMERS
+## the "TAAGGCGA+TAGATCGC" in the first line is the i7 and i5 index 
+head -n 2 data/fastq/CBW_01_16S_S1_L001_R1_001.fastq
+head -n 2 data/trimmed/CBW_01_16S_S1_R1_trimmed.fastq
+
+# how many times does the primer sequence turn up in the sample?
+# use '-s' to suppress warnings
+# must use exact matches so change primers accordingly
+# make SURE in the directory where the files exist
+grep "GTGCCAGCCGCCGCGGTAA" CBW_01_16S_S1_L001_R1_001.fastq | wc -l 
+grep "GTGCCAGCCGCCGCGGTAA" CBW_01_16S_S1_R1_trimmed.fastq | wc -l 
+
+# this shows 986 occurrences in the orignal and 0 in the trimmed -- GOOD!
+
+################## ################## ##################
+# --- BOOM
+# output looks good, primers removed, not onto processing with DADA2
+# let's move into DADA2 in the Rmarkdown.
+################## ################## ##################
 
