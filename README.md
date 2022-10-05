@@ -5,7 +5,7 @@ If you haven't seen it, go watch it **IMMEDIATELY**.
 
 <img src="https://beachgrit.com/wp-content/uploads/2022/02/24177195_401536426942206_155723050587185162_n.jpg" width="40%" height="40%">
 
-## Learning the bioinformatic pipeline for processing amplicons for microbiome analysis (16S and 18S).  
+## Learning the bioinformatic pipeline for microbiome analysis (16S and 18S).  
 > A few solid turns, but mostly KOOK SLAMS.  
 
 Data here comes from water sampling in the Eastern Sierras, where water was collected and filtered onto Sterivex filters, and DNA extracted using the Qiagen PowerWater Sterivex Kit. DNA from the V4 region of the 16S-rRNA gene was amplified using Illumina overhangs and the 515F-Parada and 806R-Apprill primer set for 16S and the TAReuk454FWD1 and TAReukREV3 primter set for 18S. Unique barcades were annealed to samples using PCR and Nextera-XT i7 and i5 barcodes. Sequencing 16S and 18S amplicons was performed using a MiSeq 600 (300-PE) in a single run.
