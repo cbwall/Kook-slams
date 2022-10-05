@@ -38,8 +38,9 @@ This workflow will use a small number of fastq files and demonstrate how you can
 I am standing on (or paddling in over) the shoulder of giants, so use these other resources! As I am literally stuck in a rip current.  
   
 *These resources include*:  
-The ultimate paddleout guide -- i.e, how to work through your 16S pipeline:  
+The ultimate paddleout guides -- i.e, how to work through your 16S pipeline:  
 https://astrobiomike.github.io/amplicon/dada2_workflow_ex  
+https://benjjneb.github.io/dada2/tutorial.html
 
 Dialing those cut backs -- i.e, working with cut-adapt:  
 https://cutadapt.readthedocs.io/en/stable/index.html  
@@ -49,6 +50,7 @@ https://www.cd-genomics.com/bioinformatics-analysis-of-16s-rrna-amplicon-sequenc
 
 Happy coding!  
 Shoots!  
+
 <img src="https://wavearcade.com/wp-content/uploads/2020/01/frustrationshaka-1024x526.jpg" width="30%" height="30%">
 
 
