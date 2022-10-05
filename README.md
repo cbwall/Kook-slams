@@ -1,7 +1,7 @@
 # Kook-slams
 *Disclaimer -- this is not an authorative pipeline tutorial. I am learning, you probably are too, hopefully this helps! Also, this repo will be loaded with surf jargon, as well as reference to the all time classic 1987 surf film [*North Shore.*](https://www.imdb.com/title/tt0093648/)  
   
-If you haven't seen it, watch it **IMMEDIATELY**. 
+If you haven't seen it, go watch it **IMMEDIATELY**. 
 
 <img src="https://beachgrit.com/wp-content/uploads/2022/02/24177195_401536426942206_155723050587185162_n.jpg" width="40%" height="40%">
 
