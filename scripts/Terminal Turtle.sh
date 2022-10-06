@@ -3,8 +3,10 @@
 # https://astrobiomike.github.io/amplicon/dada2_workflow_ex
 ################## ################## ##################
 
-###########--- Cut Adapt on local machine
+################## --------  Cut Adapt on local machine
 
+
+###########---Setup and getting conda and cutadapt to play nice
 
 # Use this terminal script for pipeline processing
 # download conda
@@ -17,16 +19,20 @@ conda config --add channels bioconda
 conda config --add channels conda-forge
 conda config --set channel_priority strict
 
-#### Now... 
 # install Cutadapt into a new Conda environment, use this command:
 conda create -n cutadaptenv cutadapt
 
-# Then activate the environment. 
+################## -------- ################## -------- ################## --------
+# For me, running this in R and having gone through the set up above, I start here:
+################## -------- ################## -------- ################## --------
+
+#  activate the environment. 
 # This needs to be done every time you open a new shell before you can use Cutadapt:
 conda activate cutadaptenv
 
 # did it work?
 cutadapt --version
+
 
 ##################--- trouble shooting
 # No?
@@ -45,11 +51,12 @@ conda install -c "bioconda/label/cf201901" cutadapt
 # STILL?!?! 
 brew install cutadapt
 ##################--- end
+################## -------- ################## -------- ################## --------
 
 
-
-######## Cut adapt processing 
-#---- now that cutadapt is in, some basics
+################## -------- ################## --------################## --------
+################## -------- CUTADAPT PREPROCESSING ################## --------
+# now that cutadapt is in, some basics
 
 # print directory
 pwd
@@ -60,8 +67,14 @@ cd ..
 # go to last directory
 cd -
 
-# before we go too far....
-# make a folder names "trimmed" and output (if you pull the repo from github this isn't necessary)
+# if you are using R Projects, your directory will be the .Rproject where you have all your files and folders
+# this should look like the github repo page...
+# so on any device, calling "pwd" yields: "computer:Kook-slams user$"
+
+##### do some setup for processing:
+# make a folder names "trimmed" and output 
+# (if you pull the repo from github this isn't necessary)
+
 mkdir data/fastq/trimmed
 mkdir output
 
@@ -86,10 +99,15 @@ ls data/fastq/ | grep fastq.gz |cut -f 1-4 -d "_" > data/fastq/samples.txt
 # did it work?
 cat data/fastq/samples.txt
 
+# are the raw files zipped (.gz) or not (.fastq)
+ls data/fastq/
+
 # unzip sequence files, if necessary
 gunzip data/fastq/*.fastq.gz
 
-##### run cutadapt
+
+################## -------- ################## --------################## --------
+################## -------- READY TO RUN CUTADAPT ################## --------
 
 # here our 16S primers have mixed concentrations of nucelotides to account for degeneracy,
 # Y = equal molar mix of C or T
@@ -106,6 +124,8 @@ gunzip data/fastq/*.fastq.gz
 # -m for minimum and -M for maximum read length
 
 # but make sure you are in the directory for the project (i.e., in the '/Kook-slams' folder)
+# also, the \ here are just to ignore line returns and make the code less vomit-y
+
 for SAMPLEID in $(cat data/fastq/samples.txt);
 do
     echo "On sample: $SAMPLEID"
@@ -118,40 +138,57 @@ do
 done
 
 # by adding the ".gz" for the output for forward and reverse, it will compress the files for us
-# example: R1_trimmed.fastq.gz for -o
+# example: -o data/trimmed/${SAMPLEID}_R1_trimmed.fastq.gz \
 
 # to rezip, def need to do this if pushing to github
 gzip data/fastq/*.fastq # rezip the raw data
 gzip data/trimmed/*.fastq  # no need if output rezips for you
 
-### -------
-# this is a good point to push the trimmed files to GitHub
-# later on the unzipped fastq files are too large
-### -------
 
-
-#### evaluating cut-adapt
-## if need, unzip -- this will bring us back to fastq formats
-gunzip data/fastq/*.fastq.gz
-gunzip data/trimmed/*.fastq.gz
+################## --------################## -------- ################## --------
+################## -------- EVALUATING CUTADAPT ################## --------
+# do these steps while everything is in unzipped form
 
 ### R1 BEFORE TRIMMING PRIMERS
 ## the "TAAGGCGA+TAGATCGC" in the first line is the i7 and i5 index 
 head -n 2 data/fastq/CBW_01_16S_S1_L001_R1_001.fastq
 head -n 2 data/trimmed/CBW_01_16S_S1_R1_trimmed.fastq
+# can see the start nucelotides are removed (N-TGTCAGCAGCCGCGGTAA)
+# the "N" is weird, should be "G" but is likely something from the sequencing run
+# luckily cut-adapt has an allowance for error at ~3 nucleotides
 
-# how many times does the primer sequence turn up in the sample?
+
+####### # how many times does the primer sequence turn up in the sample?
 # use '-s' to suppress warnings
 # must use exact matches so change primers accordingly
-# make SURE in the directory where the files exist
-grep "GTGCCAGCCGCCGCGGTAA" CBW_01_16S_S1_L001_R1_001.fastq | wc -l 
-grep "GTGCCAGCCGCCGCGGTAA" CBW_01_16S_S1_R1_trimmed.fastq | wc -l 
+# make SURE in the directory where the files exist, let's chance the wd
 
-# this shows 986 occurrences in the orignal and 0 in the trimmed -- GOOD!
+cd data/fastq/
+grep "GTGCCAGCCGCCGCGGTAA" CBW_01_16S_S1_L001_R1_001.fastq | wc -l 
+# this shows 986 occurrences in the orignal
+
+cd - # reverts to project directoty
+
+# let's look at the trimmed files
+cd data/trimmed/
+grep "GTGCCAGCCGCCGCGGTAA" CBW_01_16S_S1_R1_trimmed.fastq | wc -l 
+# this shows 0 occurrences for primer in the trimmed -- GOOD!
+
+#####  WE DID IT!!!! SO PITTED!!! ######
+
+
+################## -------- 
+# this is a good point to push the trimmed files to GitHub (if you're using your own repo)
+# the unzipped fastq raw and trimmed files are too large to be pushed
+################## -------- 
 
 #rezip and move to DADA2
-gzip data/fastq/*.fastq # these can go back to zip, won't use
-gunzip data/trimmed/*.fastq # these are small enough to remain unzipped and are used in DADA2
+cd -
+gzip data/fastq/*.fastq # these can go back to zip, won't use later
+gzip data/trimmed/*.fastq # rezip these too
+
+# if files <10MB can go to REPO (check to avoid an error that eats a day!)
+
 ################## ################## ##################
 # --- BOOM
 # output looks good, primers removed, not onto processing with DADA2

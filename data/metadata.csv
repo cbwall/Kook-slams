@@ -9,3 +9,11 @@ CBW_07_16S,2016_18,16S,2016,sierra,Blue,eDNA,177,samples
 CBW_08_16S,2016_16,16S,2016,sierra,Boundary LK,eDNA,178,samples
 CBW_09_16S,2016_07,16S,2016,sierra,Spotted Fawn,eDNA,179,samples
 CBW_10_16S,2017_23,16S,2017,sierra,Greenstone,eDNA,180,samples
+CBW_11_16S,2017_11,16S,2017,sierra,Sunrise 2,eDNA,181,samples
+CBW_12_16S,2017_10,16S,2017,sierra,Gaylor upper,eDNA,182,samples
+CBW_13_16S,2021_05,16S,2021,sierra,Virginia,eDNA,183,samples
+CBW_14_16S,2016_20,16S,2016,sierra,Gaylor 2 upper,eDNA,184,samples
+CBW_15_16S,2021_29,16S,2021,NA,NA,ext.blank,185,controls
+CBW_22_16S,sierra_PCR_NEG_1,16S,NA,NA,NA,pcr_neg,192,controls
+CBW_53_16S,sierra_PCR_POS_16S_1,16S,NA,NA,NA,pcr_pos,223,controls
+CBW_91_16S,sierra_PCR_POS_2,16S,NA,NA,NA,pcr_pos,261,controls
