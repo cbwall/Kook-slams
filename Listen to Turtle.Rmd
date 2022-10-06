@@ -25,7 +25,7 @@ if (!require("pacman")) install.packages("pacman") # for rapid install if not in
 # use pacman to load CRAN packages missing
 pacman::p_load('knitr', 'tidyverse', 'knitr', 'magrittr', 'effects', 'devtools',
                'stringi', 'dplyr', "ggplot2", "gridExtra", "dada2", "phyloseq", "vegan", "cowplot",
-               "decontam","BiocManager", "dada2")
+               "decontam","BiocManager", "dada2", "decipher")
 
 devtools::install_github("benjjneb/dada2", ref="v1.20") # update to most recent dada2
 
@@ -43,11 +43,16 @@ knitr::opts_chunk$set(echo = TRUE)
 First, bring in the metadata for the 10 samples/fastq files we are using.
 ```{r}
 run.metaD<- read.csv("data/metadata.csv")
+run.metaD$year<-as.factor(run.metaD$year)
+run.metaD$site<-as.factor(run.metaD$site)
 ```
   
 Now we will filter the trimmed (cut-adapt processed) FASTQ files.
 ```{r filter and trim}
-# read in the names of the fastq files
+# read in the names of the fastq files 
+# (if these are zipped), run in terminal
+# $ gunzip file/path/*.fastq , where 'file/parh is location of the fastq.gz files' 
+
 # perform some string manipulation to get lists of the forward and reverse fastq in matched order:
 
 # load in the cut-adapt samples in the "trimmed" folder
@@ -87,7 +92,9 @@ plotQualityProfile(fnFs[c(1,10)])
 plotQualityProfile(fnRs[c(2,8)])
 ```
 
-Now we can The truncating value does not have to be same for F and R. Trimming and filtering is performed on paired reads jointly, i.e. both reads must pass the filter for the pair to pass.
+Now we can The truncating value does not have to be same for F and R. Trimming and filtering is performed on paired reads jointly, i.e. both reads must pass the filter for the pair to pass.   
+
+This is an important step where you must consider the quality of your reads, but also the type of sequencing you are doing (V1-V2, V3-V4, V4-V5, other). Here, we used Miseq-600, yielding 300-paired end reads (300F, 300R). The region of interest, prokaryote V4 rRNA gene region is ~290 bp, so our reads will overlap and there is room for plenty of trimming without disaster ensuing. *Your reads must still overlap after truncation in order to merge them later!* As others note, your reads must be large enough to maintain *20 + biological.length.variation* nucleotides of overlap between them. 
 
 ```{r export}
 # We define the filenames for the filtered fastq files:
@@ -118,54 +125,405 @@ filtRs <- file.path(filt_path, paste0(sampleNames, "_R_trimfilt.fastq"))
 out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(215,200), #trimLeft=c(19,20),
                      maxN=0, maxEE=c(2,2), truncQ=2, rm.phix=TRUE,
                      compress=TRUE, multithread=TRUE) # On Windows set multithread=FALSE
+
+# this dataframe will show us the files and the # of reads going in, and out (post filterAndTrim)
 head(out)
 
+#inspect quality score plots for the filtered reads
+plotQualityProfile(filtFs)
+plotQualityProfile(filtRs)
+
+# write to the export folder
 write.csv(out, file="output/out.trim.csv")
 ```
 
-###Infer sequence variants
-After filtering, use high-resolution DADA2 method to to infer amplicon sequence variants (ASVs) exactly, without imposing any arbitrary threshhold 
 
-In order to verify that the error rates have been reasonably well-estimated, we inspect the fit between the observed error rates (black points) and the fitted error rates (black lines) in Figure 1. These figures show the frequencies of each type of transition as a function of the quality.
+###Error rates & Dereplicate
+In order to verify that the error rates have been reasonably well-estimated, we inspect the fit between the observed error rates (black points) and the fitted error rates (black lines). These figures show the frequencies of each type of transition as a function of the quality. Generally speaking you want black dots and black lines to correspond to some degree.
 
+Let's learn and inspect the error rate
 ```{r error rates}
 ### estimate the error rates
 errF <- learnErrors(filtFs, multithread=TRUE)
-saveRDS(errF, file="output/errF.rds")
 
 errR <- learnErrors(filtRs, multithread=TRUE)
-saveRDS(errR, file="output/errR.rds")
-
 
 # plot error rates
 plotErrors(errF, nominalQ=TRUE)
 plotErrors(errR, nominalQ=TRUE)
 ```
 
-Dereplication combines all identical sequencing reads into into “unique sequences” with a corresponding “abundance”: the number of reads with that unique sequence. Dereplication substantially reduces computation time by eliminating redundant comparisons.
-```{r, dereplicate}
-### Derep
+Dereplication combines all identical sequencing reads into into “unique sequences” with a corresponding “abundance”: the number of reads with that unique sequence. Dereplication substantially reduces computation time by eliminating redundant comparisons. For example, if there are 100 sequences that match, keep only 1 and assign the number 100 to it as an abundance, this will reduce the computing load downstream. It also generates an average quality score for the identical sequences.
+```{r dereplicate}
+### Derep the filtered forward reads (filtFs)
 derepFs <- derepFastq(filtFs, verbose=TRUE)
-saveRDS(derepFs, file="output/derepFs.rds")
 
+# now derep the filtered reverse reads (filtRs)
 derepRs <- derepFastq(filtRs, verbose=TRUE)
-saveRDS(derepRs, file="output/derepRs.rds")
 
 # Name the derep-class objects by the sample names
 names(derepFs) <- sampleNames
 names(derepRs) <- sampleNames
 ```
 
-The DADA2 method relies on a parameterized model of substitution errors to distinguish sequencing errors from real biological variation
-```{r e}
-#The DADA2 sequence inference method can run in two different modes:
-#####
-dadaFs <-dada(derepFs, err=errF, multithread=2)
-saveRDS(dadaFs, file="output/dadaFs.rds")
+### Infer sequence variants  
+After filtering, use the high-resolution DADA2 method to to infer amplicon sequence variants (ASVs) (ie/., those sequences that are 100% identical), without imposing any arbitrary threshholds and binning common in OTUs (i.e, 97 or 99% similarity). The DADA2 method relies on a parameterized model of substitution errors to distinguish sequencing errors from real biological variation. DADA2 offers two types of pooling. `dada(..., pool=TRUE)` performs standard pooled processing, in which all samples are pooled together for sample inference. `dada(..., pool="pseudo")` performs pseudo-pooling, in which samples are processed independently after sharing information between samples, approximating pooled sample inference in linear time.
 
-dadaRs <-dada(derepRs, err=errF, multithread=2)
-saveRDS(dadaRs,file="output/dadaRs.rds")
+```{r infer unique sequences}
+#The DADA2 sequence inference method can run in two different modes: pool= TRUE and pseudo, we will use TRUE here
+#####
+dadaFs <-dada(derepFs, err=errF, multithread=2, pool=TRUE)
+# shows 290,287 reads in 58,085 unique sequences
+
+dadaRs <-dada(derepRs, err=errF, multithread=2, pool=TRUE)
+# shows 290,287 reads in 65,602 unique sequences
 
 # inspect data
 dadaFs[[1]]
 ```
+
+### Merge paired ends
+Now that we have determined the # of unique sequences in both the forward and reverse reads we can merge the reads together to obtain *the full denoised sequences* by aligning the denoised forward reads with the reverse-complement of the corresponding denoised reverse reads. This is effectively merging forward and revese ASVs to make unique, merged `contig` sequences. 
+ 
+By default, merged sequences are only output if the forward and reverse reads overlap by at least 12 bases, and are identical to each other in the overlap region (but these conditions can be changed via function arguments).
+```{r Merge paired ends}
+# merge the pairs of dadaFs (ASVs F), dereplicated-F, dadaRs (ASVs R), and dereplicated-R
+# trim overhang in case any reads go past opposing primers
+# can also set 'minOverlap=' if there is concern for low overlap -- not the case here with the PE-300
+mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, trimOverhang=TRUE, verbose=TRUE)
+```
+
+### ASV table and Chimeras
+```{r make ASV table}
+# remove anything that is "mock community"
+seqtab <- makeSequenceTable(mergers[!grepl("Mock", names(mergers))])
+table(nchar(getSequences(seqtab)))
+dim(seqtab) # shows 1784 ASVs
+```
+
+Chimeras have not yet been removed. The error model in the sequence inference algorithm does not include a chimera component, and therefore we expect this sequence table to include many chimeric sequences. We now remove chimeric sequences by comparing each inferred sequence to the others in the table, and removing those that can be reproduced by stitching together two more abundant sequences.
+
+```{r remove chimeras}
+# remove chimera
+
+seqtab.nochim <-removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+# infers 117 chimeras
+
+# how many samples cleared processing
+sum(seqtab.nochim)/sum(seqtab) # 97% of samples kept, chimeras ~ 3% of merged reads
+```
+
+DADA2 provides options for a summary table to see where sequences were lost in processing. Let this guide you if you come up against a wall, or if things look great: NICEEEEE!
+```{r summary table}
+
+getN <-function(x)sum(getUniques(x))
+summary_tab <-cbind(out,sapply(dadaFs, getN), 
+              sapply(dadaRs, getN), sapply(mergers, getN),rowSums(seqtab.nochim))
+colnames(summary_tab) <-c("input", "filtered", "denoisedF", "denoisedR", "merged", "nonchim")
+rownames(summary_tab) <- sampleNames
+head(summary_tab)
+
+write.table(summary_tab, "output/read-count-tracking.tsv", quote=FALSE, sep="\t", col.names=NA)
+```
+
+### Assign taxonomy  
+Alright! let's assign taxonomy to sequence variants. The DADA2 package provides a native implementation of the naive Bayesian classifier method for this purpose. The `assignTaxonomy` function takes as input a set of sequences to be classified and a training set of reference sequences with known taxonomy, and outputs taxonomic assignments with at least minBoot bootstrap confidence.  
+  
+This step can be tricky and depends on what you are trying to identify (16S, 18S, ITS). For 16S, SILVA database can get to species level in prokaryotes but it is not appropriate for 18S data. The assigning taxonomy can also be time and memory intensive. See the website here to [download Silva from Zenodo](https://zenodo.org/record/4587955#.Yz4Jq-zMLUI) and other options for [different reference databases](https://benjjneb.github.io/dada2/training.html) from DADA2.
+
+**HEADS UP** the RDP.gz and the SILVA.gz taxonomic training files are too large for github, so you will need to download these from the links below. Put the files in the '/data/silva folder' on your device and you will be good to go.   
+
+There are also other options now using `DECIPHER` and the recently developed `IdTaxa` taxonomic classification method, see [DECIPHER Bioconductor package](https://bioconductor.org/packages/release/bioc/html/DECIPHER.html). This can be faster and utilizes .RData archives online -- although the current version does not have a v138.1 SILVA from 202, but does have [SSU v138 from 2019](http://www2.decipher.codes/Classification/TrainingSets/SILVA_SSU_r138_2019.RData) 
+```{r taxonomic assignment}
+taxa <- assignTaxonomy(seqtab.nochim, "data/silva/silva_nr99_v138.1_train_set.fa.gz", multithread=TRUE)
+
+# to add in Species for 16S
+taxa <- addSpecies(taxa, "data/silva/silva_species_assignment_v138.1.fa.gz")
+
+# inspect taxonomic assignment
+taxa.print <- taxa # Removing sequence rownames for display only
+rownames(taxa.print) <- NULL
+head(taxa.print)
+
+# let's save this as .RData since it is so time consuming!
+saveRDS(taxa, file="output/taxaTable.rds")
+```
+
+```{r Decipher, eval=FALSE}
+# this is an example from the DADA2 page on how to use DECIPHER
+# make an IDTaxa folder in 'SILVA'
+# add in approporiate Silva .RData
+
+dna <- DNAStringSet(getSequences(seqtab.nochim)) # Create a DNAStringSet from the ASVs
+load("~/data/SILVA/IDTaxa/SILVA_SSU_r132_March2018.RData") # CHANGE TO THE PATH OF YOUR TRAINING SET
+ids <- IdTaxa(dna, trainingSet, strand="top", processors=NULL, verbose=FALSE) # use all processors
+ranks <- c("domain", "phylum", "class", "order", "family", "genus", "species") # ranks of interest
+# Convert the output object of class "Taxa" to a matrix analogous to the output from assignTaxonomy
+taxid <- t(sapply(ids, function(x) {
+        m <- match(ranks, x$rank)
+        taxa <- x$taxon[m]
+        taxa[startsWith(taxa, "unclassified_")] <- NA
+        taxa
+}))
+colnames(taxid) <- ranks; rownames(taxid) <- getSequences(seqtab.nochim)
+
+# The taxid matrix from IdTaxa is a drop-in replacement for the taxa matrix from assignTaxonomy
+# simply set `taxa <- taxid` to carry on using the IdTaxa assignments in the example code
+```
+
+### Evaluate mock community  
+I haven't done this, but probably should...
+```{r MOCK, eval=FALSE}
+#One of the samples included here was a “mock community”, in which a mixture of 20 known strains was sequenced (this mock community is supposed to be 21 strains, but P. acnes is absent from the raw data). Reference sequences corresponding to these strains were provided in the downloaded zip archive. We return to that sample and compare the sequence variants inferred by DADA2 to the expected composition of the community.
+
+unqs.mock <- seqtab.nochim["Mock",]
+unqs.mock <- sort(unqs.mock[unqs.mock>0], decreasing=TRUE) # Drop ASVs absent in the Mock
+cat("DADA2 inferred", length(unqs.mock), "sample sequences present in the Mock community.\n")
+
+mock.ref <- getSequences(file.path(path, "HMP_MOCK.v35.fasta"))
+match.ref <- sum(sapply(names(unqs.mock), function(x) any(grepl(x, mock.ref))))
+cat("Of those,", sum(match.ref), "were exact matches to the expected reference sequences.\n")
+
+```
+
+### Phyloseq  
+Combine data into a phyloseq object.  
+The package phyloseq organizes and synthesizes the different data types from a typical amplicon sequencing experiment into a single data object that can be easily manipulated
+```{r phyloseq}
+
+# load packages, but these should already be covered at the top of the Markdown
+library(phyloseq)
+library(Biostrings)
+library(ggplot2)
+
+## sample data
+# metadata is run.metaD
+all(rownames(seqtab.nochim) %in% run.metaD$sampleNames)
+
+rownames(run.metaD) <- run.metaD$sampleNames
+
+# we are combining the no-chimera sequence table, the metadata, and the taxonomic assignment into phyloseq
+ps <-phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE),
+              sample_data(run.metaD), 
+              tax_table(taxa))
+  
+# let's see the data!            
+ps
+
+# save and reload ps object
+saveRDS(ps, file="output/ps.rds")
+ps<- readRDS("output/ps.rds")
+
+#1667 taxa in 10 samples at 7 taxonomic ranks
+```
+  
+It is more convenient to use short names for our ASVs (e.g. ASV21) rather than the full DNA sequence when working with some of the tables and visualizations from phyloseq, but we want to keep the full DNA sequences for other purposes like merging with other datasets or indexing into reference databases. We’ll store the DNA sequences of our ASVs in the `refseq slot of the phyloseq object`, and then rename our taxa to a short string. That way, the short new taxa names will appear in tables and plots, and we can still recover the DNA sequences corresponding to each ASV as needed with `refseq(ps)`.
+
+```{r ASV strings}
+# make a string of DNA names and add to phyloseq
+dna <- Biostrings::DNAStringSet(taxa_names(ps))
+names(dna) <- taxa_names(ps)
+ps <- merge_phyloseq(ps, dna)
+taxa_names(ps) <- paste0("ASV", seq(ntaxa(ps)))
+
+# see the revised object with the new refseq()
+ps
+
+# or look at the metadata, etc
+sample_data(ps)
+
+```
+
+### Inspect data
+We need to remove "NA" classifications and any groups assigned to Eukaryotes. We should also make some columns for prevalence so we can understand how common certain ASVs are across samples.  
+
+```{r inspect data}
+# Show available ranks in the dataset
+rank_names(ps)
+table(tax_table(ps)[, "Kingdom"], exclude = NULL) # 21 as NA, others as eukaryotes, remove these
+
+#remove NAs
+ps <- subset_taxa(ps, !is.na(Phylum) & !Phylum %in% c("", "uncharacterized"))
+ps <- subset_taxa(ps, !is.na(Phylum) & !Phylum %in% c("", "Chloroplast"))
+
+# re-examine table, NAs gone
+table(tax_table(ps)[, "Phylum"], exclude = NULL) # no chloroplasts
+table(tax_table(ps)[, "Kingdom"], exclude = NULL) # no eukaryotes or NAs
+
+# Compute prevalence of each feature, store as data.frame
+prevdf = apply(X = otu_table(ps),
+               MARGIN = ifelse(taxa_are_rows(ps), yes = 1, no = 2),
+               FUN = function(x){sum(x > 0)})
+
+# Add taxonomy and total read counts to this data.frame
+prevdf = data.frame(Prevalence = prevdf,
+                    TotalAbundance = taxa_sums(ps),
+                    tax_table(ps))
+
+prev.sum.Phyla<-plyr::ddply(prevdf, "Phylum", function(df1){cbind(mean(df1$Prevalence),sum(df1$Prevalence))})
+colnames(prev.sum.Phyla)<-c("Phylum", "mean.prev", "sum.prev")
+
+#####  inspect # of reads
+sort(rowSums(otu_table(ps))) #reads
+rich<-estimate_richness(ps, split = TRUE, measures = NULL)
+richness.test<-cbind(run.metaD, rich$Observed)
+```
+
+### Plots
+Put your head down and send it! There is much to do -- but let's at least see what we've been working so hard on. There are lots of graphing options, even for a small dataset like this. [You can explore some here.](https://joey711.github.io/phyloseq/preprocess.html).  
+
+First, let's look at a simple alpha diversity (species richness) plot with (1) observed richness, (2) Shannon Index, and (3) Simpson Index.
+
+Some info: 
+(1) Shannon Index: Based on measuring uncertainty. The degree of uncertainty of predicting the species of a random sample is related to the diversity of a community. If a community has low diversity (dominated by one species), the uncertainty of prediction is low; a randomly sampled species is most likely going to be the dominant species. However, if diversity is high, uncertainty is high
+
+(2) Simpson’s Index: A weighted arithmetic mean of proportional abundance and measures the probability that two. individuals randomly selected from a sample will belong to the same species. The value of Simpson’s D ranges from 0 to 1, with 0 representing infinite diversity and 1 representing no diversity, so the larger the value of  𝐷 , the lower the diversity.
+
+```{r plots}
+# ex: plot in phyloseq
+ps.richness<-plot_richness(ps, x="site", measures=c("Observed", "Shannon", "Simpson"), color="year")
+
+# plot richness another way
+plot_richness(ps, x="site", measures=c("Observed", "Shannon"))
+
+######## plotting in ggplot
+
+## let's inspect the data some and see the library size
+df <- as.data.frame(sample_data(ps)) # Put sample_data into a ggplot-friendly data.frame
+df$LibrarySize <- sample_sums(ps) # this is the # of reads
+df <- df[order(df$LibrarySize),]
+df$Index <- seq(nrow(df))
+
+# figure formatting conditions
+Fig.formatting<-(theme_classic()) +
+  theme(text=element_text(size=10),
+        axis.line=element_blank(),
+        legend.text.align = 0,
+        legend.text=element_text(size=10),
+        #legend.title = element_blank(),
+        panel.border = element_rect(fill=NA, colour = "black", size=1),
+        aspect.ratio=1, 
+        axis.ticks.length=unit(0.25, "cm"),
+        axis.text.y=element_text(
+          margin=unit(c(0.5, 0.5, 0.5, 0.5), "cm"), colour="black", size=10), 
+        axis.text.x=element_text(
+          margin=unit(c(0.5, 0.5, 0.5, 0.5), "cm"), colour="black", size=8)) +
+  theme(legend.key.size = unit(0.4, "cm")) +
+  theme(aspect.ratio=1.3) +
+  theme(panel.spacing=unit(c(0, 0, 0, 0), "cm"))
+
+
+
+##### plot of library size by site and Index #
+librarySize.plot<-ggplot(data=df, aes(x=Index, y=LibrarySize, color=site)) + 
+  geom_point()+
+  xlab("Sample Index") +ylab("Library Size") +
+  ylim(0, 40000) + Fig.formatting
+librarySize.plot
+
+###### plot of library size by Year
+plot.inspect.reads.type<-ggplot(data=df, aes(x=year, y=LibrarySize, color=site)) + 
+  geom_point()+
+  xlab("Year") + ylab("Library Size") +
+  ylim(0, 40000) + Fig.formatting
+plot.inspect.reads.type
+
+
+```
+
+
+### Just one more wave...
+So much still to do from here... paddle in, or head out for a few more on the head.
+(1) identify contaminants with `decontam`
+(2) determine rarefaction
+(3) remove blanks (currently not in this dataset)
+(4) claim it!
+
+
+  
+  
+
+*below here are bits of code not yet integrated into the training dataset here. Need some time...*
+###ID contaminants
+```{r ID contaminants, eval=FALSE}
+## ID contaminants
+ps <- prune_taxa(taxa_sums(ps) > 1, ps) # first let's prune those not in at least 1 sample
+ps <- prune_samples(sample_sums(ps) > 100, ps) # remove samples with < 100 reads
+ps
+# xxxx taxa remain, xx samples (xsamples removed)
+
+sample_data(ps)$is.neg <- sample_data(ps)$sample_control == "controls"
+contamdf.prev <- isContaminant(ps, method="prevalence", neg="is.neg")
+
+table(contamdf.prev$contaminant) # which are contaminants?
+head(which(contamdf.prev$contaminant))
+```
+
+Remove contaminants and rarify
+```{r remove contam and rarefaction, eval=FALSE}
+
+### example here but not ready for the lineup
+
+## first need to decontam
+
+############# rarefy without replacement
+### remove contaminants
+ps.noncontam <- prune_taxa(!contamdf.prev$contaminant, ps)
+ps.noncontam # 5986 remain
+
+rich<-estimate_richness(ps.noncontam, split = TRUE, measures = NULL)
+plot_richness(ps.noncontam, x="year", measures=c("Observed", "Shannon")) + theme_bw()
+rarecurve(otu_table(ps.noncontam), step=50, cex=0.5, label=FALSE)
+
+
+
+ps.rare = rarefy_even_depth(ps.noncontam, rngseed=1, 
+                             sample.size=0.9*min(sample_sums(ps.noncontam)), replace=F)
+
+sort(rowSums(otu_table(ps.rare))) # rarify at 13,568 reads
+
+plot_richness(ps.rare, x="sampleNames", measures=c("Observed", "Shannon")) + theme_bw()
+rarecurve(otu_table(ps.noncontam), step=50, cex=0.5, label=FALSE)
+
+```
+
+
+```{r export ASV table, eval=FALSE}
+# giving our seq headers more manageable names (ASV_1, ASV_2...)
+asv_seqs <- colnames(seqtab.nochim)
+asv_headers <- vector(dim(seqtab.nochim)[2], mode="character")
+
+for (i in 1:dim(seqtab.nochim)[2]) {
+  asv_headers[i] <- paste(">ASV", i, sep="_")
+}
+
+# making and writing out a fasta of our final ASV seqs:
+asv_fasta <- c(rbind(asv_headers, asv_seqs))
+write(asv_fasta, "output/ASVs.fa")
+
+# count table:
+asv_tab <- t(seqtab.nochim)
+row.names(asv_tab) <- sub(">", "", asv_headers)
+write.table(asv_tab, "output/ASVs_counts.tsv", sep="\t", quote=F, col.names=NA)
+
+# tax table:
+tax_info<-taxa
+
+############# can't quite get the below to run....
+
+# creating table of taxonomy and setting any that are unclassified as "NA"
+ranks <- c("domain", "phylum", "class", "order", "family", "genus", "species")
+asv_tax <- t(sapply(tax_info, function(x) {
+  m <- match(ranks, x$rank)
+  taxa <- x$taxon[m]
+  taxa[startsWith(taxa, "unclassified_")] <- NA
+  taxa
+}))
+
+colnames(asv_tax) <- ranks
+rownames(asv_tax) <- gsub(pattern=">", replacement="", x=asv_headers)
+
+write.table(asv_tax, "ASVs_taxonomy.tsv", sep = "\t", quote=F, col.names=NA)
+
+```
+

@@ -17,9 +17,6 @@ conda config --add channels bioconda
 conda config --add channels conda-forge
 conda config --set channel_priority strict
 
-# also load 'seqfu'
-conda install -c conda-forge -c bioconda "seqfu>1.10"
-
 #### Now... 
 # install Cutadapt into a new Conda environment, use this command:
 conda create -n cutadaptenv cutadapt
@@ -48,7 +45,11 @@ conda install -c "bioconda/label/cf201901" cutadapt
 # STILL?!?! 
 brew install cutadapt
 ##################--- end
-# now that cutadapt is in, some basics
+
+
+
+######## Cut adapt processing 
+#---- now that cutadapt is in, some basics
 
 # print directory
 pwd
@@ -60,7 +61,7 @@ cd ..
 cd -
 
 # before we go too far....
-# make a folder names "trimmed" and output
+# make a folder names "trimmed" and output (if you pull the repo from github this isn't necessary)
 mkdir data/fastq/trimmed
 mkdir output
 
@@ -68,6 +69,7 @@ mkdir output
 # list the files in the directory,  then grab the important info and export
 
 # a loop that selects the fastq files in data folder, extracting names from those marked as R1 (so no repeats)
+# this will make a name file for ONLY the forward reads (R1)
 for i in data/fastq/
 do echo $i
 ls $i | grep R1 | grep fastq.gz | sed 's/\(.*\)_\(.*_\)\(.*\)_/\1|\2/;s/|.*//' > output/short_SampleList.txt
@@ -76,10 +78,10 @@ done
 ####--- alternatives to get different types of sample names
 ## only grabs the R1 samples, keeping statement in 1-4 (before the first _ and after the third_)
 # ls data/fastq/ | grep R1 | grep fastq.gz |cut -f 1-4 -d "_" > output/samples.singles.txt
+####--- 
 
-## grabs all sample names from all files (R1 and R2)
+## let's grabs all sample names from all files (R1 and R2), we will use this later
 ls data/fastq/ | grep fastq.gz |cut -f 1-4 -d "_" > data/fastq/samples.txt
-####---
 
 # did it work?
 cat data/fastq/samples.txt
@@ -95,6 +97,13 @@ gunzip data/fastq/*.fastq.gz
 # N = any base
 # V = A, C, or G
 # W = A or T
+
+# what is cut adapt doing here?
+# -g ADAPTER for forward primer/adapter
+# -G adapter for reverse primer/adapter
+# -o for output of forward read
+# -p for output of reverse read
+# -m for minimum and -M for maximum read length
 
 # but make sure you are in the directory for the project (i.e., in the '/Kook-slams' folder)
 for SAMPLEID in $(cat data/fastq/samples.txt);
@@ -140,6 +149,9 @@ grep "GTGCCAGCCGCCGCGGTAA" CBW_01_16S_S1_R1_trimmed.fastq | wc -l
 
 # this shows 986 occurrences in the orignal and 0 in the trimmed -- GOOD!
 
+#rezip and move to DADA2
+gzip data/fastq/*.fastq # these can go back to zip, won't use
+gunzip data/trimmed/*.fastq # these are small enough to remain unzipped and are used in DADA2
 ################## ################## ##################
 # --- BOOM
 # output looks good, primers removed, not onto processing with DADA2
