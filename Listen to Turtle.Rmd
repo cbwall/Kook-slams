@@ -243,7 +243,7 @@ colnames(summary_tab) <-c("input", "filtered", "denoisedF", "denoisedR", "merged
 rownames(summary_tab) <- sampleNames
 head(summary_tab)
 
-write.table(summary_tab, "output/read-count-tracking.tsv", quote=FALSE, sep="\t", col.names=NA)
+write.csv(summary_tab, "output/read-count-tracking.csv")
 ```
 
 ### Assign taxonomy  
@@ -251,9 +251,10 @@ Alright! let's assign taxonomy to sequence variants. The DADA2 package provides 
   
 This step can be tricky and depends on what you are trying to identify (16S, 18S, ITS). For 16S, SILVA database can get to species level in prokaryotes but it is not appropriate for 18S data. The assigning taxonomy can also be time and memory intensive.
 
-**HEADS UP** the RDP.gz and the SILVA.gz taxonomic training files are too large for github, so you will need to download these from the links below Put the files in the '/data/silva folder' on your device and you will be good to go. See the website here to [download Silva from Zenodo](https://zenodo.org/record/4587955#.Yz4Jq-zMLUI) and other options for [different reference databases](https://benjjneb.github.io/dada2/training.html) from DADA2.
-
+**HEADS UP** the RDP.gz and the SILVA.gz taxonomic training files are too large for github, so you will need to download these from the links below Put the files in the `/data/silva folder` on your device and you will be good to go. See the website here to [download Silva from Zenodo](https://zenodo.org/record/4587955#.Yz4Jq-zMLUI) and other options for [different reference databases](https://benjjneb.github.io/dada2/training.html) from DADA2.
+  
 There are also other options now using `DECIPHER` and the recently developed `IdTaxa` taxonomic classification method, see [DECIPHER Bioconductor package](https://bioconductor.org/packages/release/bioc/html/DECIPHER.html). This can be faster and utilizes .RData archives online -- although the current version does not have a v138.1 SILVA from 2022, but does have [SSU v138 from 2019](http://www2.decipher.codes/Classification/TrainingSets/SILVA_SSU_r138_2019.RData) 
+
 ```{r taxonomic assignment}
 taxa <- assignTaxonomy(seqtab.nochim, "data/silva/silva_nr99_v138.1_train_set.fa.gz", multithread=TRUE)
 
@@ -269,6 +270,17 @@ head(taxa.print)
 saveRDS(taxa, file="output/taxaTable.rds")
 ```
 
+
+*don't run this code unless you are trying to forego the `assignTaxonomy` and SILVA training above due to computing time*
+```{r laod in Taxatable RDS, eval=FALSE}
+#If the `assignTaxonomy` with SILVA is a pain, let's just load in the R data and run it. This is what was generated hen I ran the code above.
+
+taxa<- readRDS("output/taxaTable.rds")
+# now you've loaded in the code chunk info above and can proceed
+```
+
+
+*no need to run the code here -- this is if you want to try Decipher*
 ```{r Decipher, eval=FALSE}
 # this is an example from the DADA2 page on how to use DECIPHER
 # make an IDTaxa folder in 'SILVA'
@@ -292,7 +304,7 @@ colnames(taxid) <- ranks; rownames(taxid) <- getSequences(seqtab.nochim)
 ```
 
 ### Evaluate mock community  
-I haven't done this, but probably should... (ding the hull)
+I haven't done this, but probably should... (ding the hull: spend 2 weeks in ding repair)
 ```{r MOCK, eval=FALSE}
 #One of the samples included here was a “mock community”, in which a mixture of 20 known strains was sequenced (this mock community is supposed to be 21 strains, but P. acnes is absent from the raw data). Reference sequences corresponding to these strains were provided in the downloaded zip archive. We return to that sample and compare the sequence variants inferred by DADA2 to the expected composition of the community.
 
@@ -308,7 +320,7 @@ cat("Of those,", sum(match.ref), "were exact matches to the expected reference s
 
 ### Phyloseq  
 Combine data into a phyloseq object.  
-The package phyloseq organizes and synthesizes the different data types from a typical amplicon sequencing experiment into a single data object that can be easily manipulated
+The package phyloseq organizes and synthesizes the different data types from a typical amplicon sequencing experiment into a single data object that can be easily manipulated. You will likely use phyloseq for most downstream analyses.
 ```{r phyloseq}
 
 # load packages, but these should already be covered at the top of the Markdown
@@ -337,7 +349,7 @@ ps<- readRDS("output/ps.rds")
 #1667 taxa in 10 samples at 7 taxonomic ranks
 ```
   
-It is more convenient to use short names for our ASVs (e.g. ASV21) rather than the full DNA sequence when working with some of the tables and visualizations from phyloseq, but we want to keep the full DNA sequences for other purposes like merging with other datasets or indexing into reference databases. We’ll store the DNA sequences of our ASVs in the `refseq slot of the phyloseq object`, and then rename our taxa to a short string. That way, the short new taxa names will appear in tables and plots, and we can still recover the DNA sequences corresponding to each ASV as needed with `refseq(ps)`.
+As others have pointed out, it is more convenient to use short names for our ASVs (e.g. ASV21) rather than the full DNA sequence when working with some of the tables and visualizations from phyloseq, but we want to keep the full DNA sequences for other purposes like merging with other datasets or indexing into reference databases. We’ll store the DNA sequences of our ASVs in the `refseq slot of the phyloseq object`, and then rename our taxa to a short string. That way, the short new taxa names will appear in tables and plots, and we can still recover the DNA sequences corresponding to each ASV as needed with `refseq(ps)`.
 
 ```{r ASV strings}
 # make a string of DNA names and add to phyloseq
@@ -466,6 +478,7 @@ So much still to do from here... paddle in, or head out for a few more on the he
 
   
   
+### Still in progress
 
 *below here are bits of code not yet integrated into the training dataset here. Need some time...*
 ###ID contaminants
@@ -482,7 +495,6 @@ contamdf.prev <- isContaminant(ps, method="prevalence", neg="is.neg")
 table(contamdf.prev$contaminant) # which are contaminants?
 head(which(contamdf.prev$contaminant))
 ```
-
 
 Remove contaminants and rarify
 ```{r remove contam and rarefaction, eval=FALSE}
@@ -511,7 +523,6 @@ plot_richness(ps.rare, x="sampleNames", measures=c("Observed", "Shannon")) + the
 rarecurve(otu_table(ps.noncontam), step=50, cex=0.5, label=FALSE)
 
 ```
-
 
 ```{r export ASV table, eval=FALSE}
 # giving our seq headers more manageable names (ASV_1, ASV_2...)
