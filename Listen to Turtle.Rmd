@@ -12,6 +12,7 @@ output:
     toc: yes
     toc_depth: '4'
 ---
+
 ## Listen to Turtle 
 <center>  
   
@@ -20,7 +21,7 @@ output:
 
 The goal of this tutorial is to work through 16S and 18S data using cut-adapt for trimming and DAD2 for filtering and taxonomic assignment. For cut-adapt processing of the raw FASTQ files, run the terminal script *"Terminal Turtle"* in RStudio terminal interface. Downstream (down pipe?) processing will be performed in R using DADA2.  
 
-Okay, so prior to using the R Markdown, open and execute the "Terminal Turtle" Shell. Once that's complete, let's jump into the R side of the pipeline.
+OKay, so prior to using the R Markdown, open and execute the "Terminal Turtle" Shell. Once that's complete, let's jump into the R side of the pipeline.
 
 ```{r global options, results="hide", warning=FALSE, message=FALSE, include=FALSE}
 if (!require('knitr')) install.packages('knitr'); library('knitr')
@@ -34,28 +35,30 @@ pacman::p_load('knitr', 'tidyverse', 'knitr', 'magrittr', 'effects', 'devtools',
                'stringi', 'dplyr', "ggplot2", "gridExtra", "dada2", "phyloseq", "vegan", "cowplot",
                "decontam","BiocManager", "dada2", "decipher")
 
-#### --- below if needed
-#devtools::install_github("benjjneb/dada2", ref="v1.20") # update to most recent dada2
-
+devtools::install_github("benjjneb/dada2", ref="v1.20", force = T) # update to most recent dada2
 
 #upload Bioconductor (now BiocManager or R v. > 3.5.0 ), can specify different version in last line
 # if (!require("BiocManager", quietly = TRUE))
 # install.packages("BiocManager")
 
 #install specific BiocManager packages
-# BiocManager::install(c( "Decipher", "phangorn", "phyloseq"), update = TRUE, ask = FALSE) 
+# BiocManager::install(c( "Decipher", "phangorn", "phyloseq"), update = TRUE, ask = FALSE)
+knitr::opts_chunk$set(echo = TRUE)
+
+#install DSECIPHER
+if (!requireNamespace("BiocManager", quietly=TRUE))
+    install.packages("BiocManager")
+BiocManager::install("DECIPHER")
+ibrary(DECIPHER)
+
 ```
 
 ### Come to DADA2
 First, bring in the metadata for the 10 samples/fastq files we are using.
 ```{r}
-# load metadata
 run.metaD<- read.csv("data/metadata.csv")
-
-# make sure important columns are factors
 run.metaD$year<-as.factor(run.metaD$year)
 run.metaD$site<-as.factor(run.metaD$site)
-run.metaD$sample_control<-as.factor(run.metaD$sample_control)
 ```
   
 Now we will filter the trimmed (cut-adapt processed) FASTQ files.
@@ -101,6 +104,8 @@ plotQualityProfile(fnFs[c(1,10)])
 
 # quality score plot for reverse reads
 plotQualityProfile(fnRs[c(2,8)])
+
+# Note the "Warning: `guides(<scale> = FALSE)` is deprecated. Please use `guides(<scale> = "none")` instead." is a harmless bug (sea flea) and can be ignored.
 ```
 
 Now we can The truncating value does not have to be same for F and R. Trimming and filtering is performed on paired reads jointly, i.e. both reads must pass the filter for the pair to pass.   
@@ -118,9 +123,9 @@ filtRs <- file.path(filt_path, paste0(sampleNames, "_R_trimfilt.fastq"))
 #### --- if not using cut-adapt, Figaro is a nice option 
 # https://github.com/Zymo-Research/figaro
 # use raw fastq files, not sure if cutadapt will lead to problems, but logically, perhaps both don't go together
-# will give an estimate for max retension (84%)
+# will give an estimate for max retention (84%)
 # will trim primer for forward (19) and reverse (20)
-# Run Figaro to get estiamtes of what the truncLen should be (called Trim Position)
+# Run Figaro to get estimates of what the truncLen should be (called Trim Position)
 # removing the trimleft since primers removed, also Figaro can't run with trimmed data so forego.
 #### ---
 
@@ -130,7 +135,7 @@ filtRs <- file.path(filt_path, paste0(sampleNames, "_R_trimfilt.fastq"))
 # truncLen = left (forward) and right (reverse) truncation specified by user based on quality score plots
 # if trimleft used, this will remove the F and R primers (or will at least remove the # of bp you specify)
 # maxEE = quality filtering threshold based on expected errors, 
-#   here 2,2 = toss reads if they have more than 2 erroneous base calls in F and R reads, separaetly
+#   here 2,2 = toss reads if they have more than 2 erroneous base calls in F and R reads, separately
 # rm.phix = remove reads that match to PhiX bacteriophage genome (added by Illumina runs for quality monitoring)
 
 out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(215,200), #trimLeft=c(19,20),
@@ -244,13 +249,11 @@ write.table(summary_tab, "output/read-count-tracking.tsv", quote=FALSE, sep="\t"
 ### Assign taxonomy  
 Alright! let's assign taxonomy to sequence variants. The DADA2 package provides a native implementation of the naive Bayesian classifier method for this purpose. The `assignTaxonomy` function takes as input a set of sequences to be classified and a training set of reference sequences with known taxonomy, and outputs taxonomic assignments with at least minBoot bootstrap confidence.  
   
-This step can be tricky and depends on what you are trying to identify (16S, 18S, ITS). For 16S, SILVA database can get to species level in prokaryotes but it is not appropriate for 18S data. The assigning taxonomy can also be time and memory intensive. See the website here to [download Silva from Zenodo](https://zenodo.org/record/4587955#.Yz4Jq-zMLUI) and other options for [different reference databases](https://benjjneb.github.io/dada2/training.html) from DADA2.
+This step can be tricky and depends on what you are trying to identify (16S, 18S, ITS). For 16S, SILVA database can get to species level in prokaryotes but it is not appropriate for 18S data. The assigning taxonomy can also be time and memory intensive.
 
-**HEADS UP** the RDP.gz and the SILVA.gz taxonomic training files are too large for github, so you will need to download these from the links below. Put the files in the '/data/silva folder' on your device and you will be good to go.   
+**HEADS UP** the RDP.gz and the SILVA.gz taxonomic training files are too large for github, so you will need to download these from the links below Put the files in the '/data/silva folder' on your device and you will be good to go. See the website here to [download Silva from Zenodo](https://zenodo.org/record/4587955#.Yz4Jq-zMLUI) and other options for [different reference databases](https://benjjneb.github.io/dada2/training.html) from DADA2.
 
-There are also other options now using `DECIPHER` and the recently developed `IdTaxa` taxonomic classification method, see [DECIPHER Bioconductor package](https://bioconductor.org/packages/release/bioc/html/DECIPHER.html). This can be faster and utilizes .RData archives online -- although the current version does not have a v138.1 SILVA from 202, but does have [SSU v138 from 2019](http://www2.decipher.codes/Classification/TrainingSets/SILVA_SSU_r138_2019.RData)  
-
-If running SILVA assignment is problemtic, skip this step and jumpt to the one below where you can load in the taxanomic assignment as a .RData file `taxaTable.rds`. 
+There are also other options now using `DECIPHER` and the recently developed `IdTaxa` taxonomic classification method, see [DECIPHER Bioconductor package](https://bioconductor.org/packages/release/bioc/html/DECIPHER.html). This can be faster and utilizes .RData archives online -- although the current version does not have a v138.1 SILVA from 2022, but does have [SSU v138 from 2019](http://www2.decipher.codes/Classification/TrainingSets/SILVA_SSU_r138_2019.RData) 
 ```{r taxonomic assignment}
 taxa <- assignTaxonomy(seqtab.nochim, "data/silva/silva_nr99_v138.1_train_set.fa.gz", multithread=TRUE)
 
@@ -266,21 +269,13 @@ head(taxa.print)
 saveRDS(taxa, file="output/taxaTable.rds")
 ```
 
-```{r load in the taxaTable Rdata}
-# this will load in the data I generated by running the code chunk above.
-taxa<- readRDS("output/taxTab.rds")
-```
-
-Alternative to using `assignTaxonomy` can be using DECIPHER to load in data, however the versions are different (2019-v138 vs. 2021-v138.1)
 ```{r Decipher, eval=FALSE}
 # this is an example from the DADA2 page on how to use DECIPHER
-# it has not been edited (yet) to work with the data in this tutorial
-
 # make an IDTaxa folder in 'SILVA'
-# add in approporiate Silva .RData
+# add in appropriate Silva .RData
 
 dna <- DNAStringSet(getSequences(seqtab.nochim)) # Create a DNAStringSet from the ASVs
-load("~/data/SILVA/IDTaxa/SILVA_SSU_r132_March2018.RData") # CHANGE TO THE PATH OF YOUR TRAINING SET
+load("~/Downloads/Kook-slams-main/data/SILVA/IDTaxa/SILVA_SSU_r138_2019.RData") # CHANGE TO THE PATH OF YOUR TRAINING SET
 ids <- IdTaxa(dna, trainingSet, strand="top", processors=NULL, verbose=FALSE) # use all processors
 ranks <- c("domain", "phylum", "class", "order", "family", "genus", "species") # ranks of interest
 # Convert the output object of class "Taxa" to a matrix analogous to the output from assignTaxonomy
@@ -297,7 +292,7 @@ colnames(taxid) <- ranks; rownames(taxid) <- getSequences(seqtab.nochim)
 ```
 
 ### Evaluate mock community  
-I haven't done this, but probably should...
+I haven't done this, but probably should... (ding the hull)
 ```{r MOCK, eval=FALSE}
 #One of the samples included here was a “mock community”, in which a mixture of 20 known strains was sequenced (this mock community is supposed to be 21 strains, but P. acnes is absent from the raw data). Reference sequences corresponding to these strains were provided in the downloaded zip archive. We return to that sample and compare the sequence variants inferred by DADA2 to the expected composition of the community.
 
@@ -406,10 +401,10 @@ Some info:
 
 ```{r plots}
 # ex: plot in phyloseq
-ps.richness<-plot_richness(ps, x="site", measures=c("Observed", "Shannon", "Simpson"), color="year")
+ps.richness<-plot_richness(ps, x="site", measures=c("Observed", "Shannon", "Chao1"), color="year")
 
 # plot richness another way
-phylo.rich.plot<-plot_richness(ps, x="site", measures=c("Observed", "Shannon"))
+phylo.rich.plot<-plot_richness(ps, x="site", measures=c("Observed", "Shannon", "Chao1"))
 
 ggsave("figures/phylo.rich.plot.pdf", height=5, width=5)
 
