@@ -11,7 +11,7 @@ If you haven't seen it, go watch it **IMMEDIATELY**.
 
 Data here comes from water sampling in the Eastern Sierras, where water was collected and filtered onto Sterivex filters, and DNA extracted using the Qiagen PowerWater Sterivex Kit. DNA from the V4 region of the 16S-rRNA gene was amplified using Illumina overhangs and the 515F-Parada and 806R-Apprill primer set for 16S and the TAReuk454FWD1 and TAReukREV3 primter set for 18S. Unique barcades were annealed to samples using PCR and Nextera-XT i7 and i5 barcodes. Sequencing 16S and 18S amplicons was performed using a MiSeq 600 (300-PE) in a single run.
 
-> *16S-primers*: yields ~5290 bp amplicon from v4 region of prokaryote 16S-rRNA gene  
+> *16S-primers*: yields ~290 bp amplicon from v4 region of prokaryote 16S-rRNA gene  
 > 515F-Parada (also called '515F-Y'): 5'-GTGYCAGCMGCCGCGGTAA-3'   
 > 806R-Apprill: 5'-GGACTACNVGGGTWTCTAAT-3'  
 > References: [Parada et al. 2016](http://dx.doi.org/10.1111/1462-2920.13023) and [Apprill et al., 2015](http://www.int-res.com/abstracts/ame/v75/n2/p129-137/)
