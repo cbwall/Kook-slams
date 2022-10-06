@@ -4,7 +4,7 @@ Also, this repo will be loaded with surf jargon, as well as reference to the all
   
 If you haven't seen it, go watch it **IMMEDIATELY**. 
 
-<img src="https://beachgrit.com/wp-content/uploads/2022/02/24177195_401536426942206_155723050587185162_n.jpg" width="40%" height="40%">
+<img src="https://beachgrit.com/wp-content/uploads/2022/02/24177195_401536426942206_155723050587185162_n.jpg" width="50%" height="50%">
 
 ## Learning the bioinformatic pipeline for microbiome analyses (16S and 18S).  
 > A few solid turns, but mostly KOOK SLAMS.  
@@ -52,7 +52,7 @@ https://www.cd-genomics.com/bioinformatics-analysis-of-16s-rrna-amplicon-sequenc
 Happy coding!  
 Shoots!  
 
-<img src="https://wavearcade.com/wp-content/uploads/2020/01/frustrationshaka-1024x526.jpg" width="30%" height="30%">
+<img src="https://wavearcade.com/wp-content/uploads/2020/01/frustrationshaka-1024x526.jpg" width="50%" height="50%">
 
 
 
