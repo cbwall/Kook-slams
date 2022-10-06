@@ -12,8 +12,14 @@ output:
     toc: yes
     toc_depth: '4'
 ---
-## Listen to Turtle  
-The goal of this tutorial is to work through 16S and 18S data using cut-adapt for trimming and DAD2 for filtering and taxonomic assignment. For cut-adapt processing of the raw FASTQ files, run the terminal script "Terminal Turtle" in RStudio terminal interface. Downstream (down pipe?) processing will be performed in R using DADA2.  
+
+## Listen to Turtle 
+<center>  
+  
+![**Figure 1. When wave breaks here, don't be there!**](output/When.wave.breaks.here.jpg){ width=70%}
+</center>  
+
+The goal of this tutorial is to work through 16S and 18S data using cut-adapt for trimming and DAD2 for filtering and taxonomic assignment. For cut-adapt processing of the raw FASTQ files, run the terminal script *"Terminal Turtle"* in RStudio terminal interface. Downstream (down pipe?) processing will be performed in R using DADA2.  
 
 OKay, so prior to using the R Markdown, open and execute the "Terminal Turtle" Shell. Once that's complete, let's jump into the R side of the pipeline.
 
@@ -206,9 +212,13 @@ mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, trimOverhang=TRUE, verbo
 ### ASV table and Chimeras
 ```{r make ASV table}
 # remove anything that is "mock community"
-seqtab <- makeSequenceTable(mergers[!grepl("Mock", names(mergers))])
+seqtab <- makeSequenceTable(mergers)
+
+# if wanted to remove "mock community" (pcr_pos) you could do this here... we will do it later so we can evaluate the mock community
+# seqtab <- makeSequenceTable(mergers[!grepl("Mock", names(mergers))])
+
 table(nchar(getSequences(seqtab)))
-dim(seqtab) # shows 1784 ASVs
+dim(seqtab) # shows 2437 ASVs in 18 samples
 ```
 
 Chimeras have not yet been removed. The error model in the sequence inference algorithm does not include a chimera component, and therefore we expect this sequence table to include many chimeric sequences. We now remove chimeric sequences by comparing each inferred sequence to the others in the table, and removing those that can be reproduced by stitching together two more abundant sequences.
@@ -217,10 +227,10 @@ Chimeras have not yet been removed. The error model in the sequence inference al
 # remove chimera
 
 seqtab.nochim <-removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
-# infers 117 chimeras
+# infers 459 chimeras
 
 # how many samples cleared processing
-sum(seqtab.nochim)/sum(seqtab) # 97% of samples kept, chimeras ~ 3% of merged reads
+sum(seqtab.nochim)/sum(seqtab) # 95% of samples kept, chimeras ~ 3% of merged reads
 ```
 
 DADA2 provides options for a summary table to see where sequences were lost in processing. Let this guide you if you come up against a wall, or if things look great: NICEEEEE!
