@@ -15,6 +15,8 @@ output:
 ## Listen to Turtle  
 The goal of this tutorial is to work through 16S and 18S data using cut-adapt for trimming and DAD2 for filtering and taxonomic assignment. For cut-adapt processing of the raw FASTQ files, run the terminal script "Terminal Turtle" in RStudio terminal interface. Downstream (down pipe?) processing will be performed in R using DADA2.  
 
+OKay, so prior to using the R Markdown, open and execute the "Terminal Turtle" Shell. Once that's complete, let's jump into the R side of the pipeline.
+
 ```{r global options, results="hide", warning=FALSE, message=FALSE, include=FALSE}
 if (!require('knitr')) install.packages('knitr'); library('knitr')
 knitr::opts_chunk$set(warning=FALSE, message=FALSE, fig.align='center')
@@ -384,7 +386,9 @@ Some info:
 ps.richness<-plot_richness(ps, x="site", measures=c("Observed", "Shannon", "Simpson"), color="year")
 
 # plot richness another way
-plot_richness(ps, x="site", measures=c("Observed", "Shannon"))
+phylo.rich.plot<-plot_richness(ps, x="site", measures=c("Observed", "Shannon"))
+
+ggsave("figures/phylo.rich.plot.pdf", height=5, width=5)
 
 ######## plotting in ggplot
 
@@ -428,6 +432,8 @@ plot.inspect.reads.type<-ggplot(data=df, aes(x=year, y=LibrarySize, color=site))
   ylim(0, 40000) + Fig.formatting
 plot.inspect.reads.type
 
+# save the plot
+ggsave("figures/librarysize_by_site_year.pdf", height=5, width=5)
 
 ```
 
@@ -458,6 +464,7 @@ contamdf.prev <- isContaminant(ps, method="prevalence", neg="is.neg")
 table(contamdf.prev$contaminant) # which are contaminants?
 head(which(contamdf.prev$contaminant))
 ```
+
 
 Remove contaminants and rarify
 ```{r remove contam and rarefaction, eval=FALSE}
